@@ -13,17 +13,12 @@ export default async (req: Request) => {
   }
 
   try {
-    // Attempt to insert the admin role. 
-    // If it conflicts (due to unique index), we do nothing (it's already there).
-    // Using ON CONFLICT DO NOTHING requires the constraint to be named or specified.
-    // Since we just added idx_user_roles_unique (user_id, role), we can rely on it.
+    // Check if the user already has the admin role
+    const existing = await sql("SELECT 1 FROM user_roles WHERE user_id = $1 AND role = 'admin'", [userId]);
     
-    // Note: neon/postgres syntax for ON CONFLICT
-    await sql(`
-      INSERT INTO user_roles (user_id, role) 
-      VALUES ($1, 'admin') 
-      ON CONFLICT (user_id, role) DO NOTHING
-    `, [userId]);
+    if (existing.length === 0) {
+      await sql("INSERT INTO user_roles (user_id, role) VALUES ($1, 'admin')", [userId]);
+    }
     
     return new Response(JSON.stringify({ success: true, message: "Admin role assigned" }), {
       status: 200,

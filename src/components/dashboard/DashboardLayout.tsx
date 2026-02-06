@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   LogOut,
@@ -27,6 +28,7 @@ const DashboardLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAdmin, isLoading: authLoading, signOut } = useAuth();
+  const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleSignOut = async () => {
@@ -58,9 +60,34 @@ const DashboardLayout = () => {
           <p className="text-muted-foreground mb-4">
             ليس لديك صلاحية للوصول إلى لوحة التحكم
           </p>
-          <Button onClick={() => navigate("/")} variant="outline">
-            العودة للصفحة الرئيسية
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button onClick={() => navigate("/")} variant="outline">
+              العودة للصفحة الرئيسية
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  toast({ title: "جاري الإصلاح", description: "جاري إعداد قاعدة البيانات..." });
+                  // 1. Setup DB tables
+                  await fetch("/api/db-setup");
+                  // 2. Make me admin
+                  if (user?.id) {
+                    await fetch(`/api/init-admin?userId=${user.id}`);
+                  }
+                  toast({ title: "تم الإصلاح", description: "سيتم إعادة تحميل الصفحة..." });
+                  // 3. Reload
+                  setTimeout(() => window.location.reload(), 1000);
+                } catch (e) {
+                  console.error(e);
+                  toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء محاولة إصلاح الصلاحيات" });
+                }
+              }} 
+              variant="secondary"
+              className="mt-2"
+            >
+              إصلاح الصلاحيات (Admin Setup)
+            </Button>
+          </div>
         </div>
       </div>
     );

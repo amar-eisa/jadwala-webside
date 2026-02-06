@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +29,7 @@ import {
 } from "lucide-react";
 
 interface Lead {
-  id: string;
+  id: number;
   full_name: string;
   email: string;
   phone: string;
@@ -75,18 +74,15 @@ const DashboardLeads = () => {
   const fetchLeads = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("leads")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        toast({ variant: "destructive", title: "خطأ", description: "فشل في جلب البيانات" });
+      const response = await fetch("/api/leads");
+      if (response.ok) {
+        setLeads(await response.json());
       } else {
-        setLeads(data || []);
+        toast({ variant: "destructive", title: "خطأ", description: "فشل في جلب البيانات" });
       }
     } catch (error) {
       console.error("Error:", error);
+      toast({ variant: "destructive", title: "خطأ", description: "فشل في جلب البيانات" });
     } finally {
       setIsLoading(false);
     }
@@ -110,21 +106,23 @@ const DashboardLeads = () => {
     setFilteredLeads(filtered);
   };
 
-  const updateLeadStatus = async (leadId: string, newStatus: string) => {
+  const updateLeadStatus = async (leadId: number, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from("leads")
-        .update({ status: newStatus as Lead["status"] })
-        .eq("id", leadId);
+      const response = await fetch("/api/leads", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: leadId, status: newStatus }),
+      });
 
-      if (error) {
-        toast({ variant: "destructive", title: "خطأ", description: "فشل في تحديث الحالة" });
-      } else {
-        toast({ title: "تم التحديث", description: "تم تحديث حالة العميل بنجاح" });
-        fetchLeads();
+      if (!response.ok) {
+        throw new Error("Failed to update status");
       }
+
+      toast({ title: "تم التحديث", description: "تم تحديث حالة العميل بنجاح" });
+      fetchLeads();
     } catch (error) {
       console.error("Error updating status:", error);
+      toast({ variant: "destructive", title: "خطأ", description: "فشل في تحديث الحالة" });
     }
   };
 

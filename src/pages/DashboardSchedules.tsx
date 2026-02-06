@@ -87,7 +87,6 @@ const DashboardSchedules = () => {
   const [halls, setHalls] = useState<Hall[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dbReady, setDbReady] = useState(true);
 
   const [form, setForm] = useState({
     course_id: "",
@@ -99,19 +98,6 @@ const DashboardSchedules = () => {
     semester: "",
     academic_year: "",
   });
-
-  const setupDb = useCallback(async () => {
-    try {
-      const res = await fetch("/api/db-setup", { method: "POST" });
-      if (res.ok) {
-        setDbReady(true);
-        return true;
-      }
-    } catch {
-      // DB may not be provisioned yet
-    }
-    return false;
-  }, []);
 
   const fetchAll = useCallback(async () => {
     setIsLoading(true);
@@ -128,19 +114,16 @@ const DashboardSchedules = () => {
       if (instructorsRes.ok) setInstructors(await instructorsRes.json());
       if (hallsRes.ok) setHalls(await hallsRes.json());
     } catch (error) {
-      setDbReady(false);
+      console.error(error);
+      toast({ variant: "destructive", title: "خطأ", description: "فشل في تحميل البيانات" });
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    const init = async () => {
-      await setupDb();
-      await fetchAll();
-    };
-    init();
-  }, [setupDb, fetchAll]);
+    fetchAll();
+  }, [fetchAll]);
 
   const handleSubmit = async () => {
     if (!form.course_id || !form.instructor_id || !form.hall_id || !form.day_of_week || !form.start_time || !form.end_time) {
@@ -192,20 +175,6 @@ const DashboardSchedules = () => {
       toast({ variant: "destructive", title: "خطأ", description: "فشل في حذف الجدول" });
     }
   };
-
-  if (!dbReady) {
-    return (
-      <div className="text-center py-12">
-        <AlertCircle className="w-12 h-12 mx-auto text-yellow-500 mb-4" />
-        <h2 className="text-xl font-bold mb-2">قاعدة البيانات غير جاهزة</h2>
-        <p className="text-muted-foreground mb-4">يرجى تشغيل التطبيق عبر Netlify Dev لتفعيل قاعدة البيانات</p>
-        <Button onClick={() => { setupDb().then(() => fetchAll()); }}>
-          <RefreshCw className="w-4 h-4 ml-2" />
-          إعادة المحاولة
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <div>

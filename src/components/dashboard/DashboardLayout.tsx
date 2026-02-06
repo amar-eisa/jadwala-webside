@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   LogOut,
   Users,
@@ -55,46 +56,25 @@ const DashboardLayout = () => {
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background" dir="rtl">
-        <div className="max-w-md p-8 text-center bg-card rounded-lg border">
+        <div className="max-w-lg p-8 text-center bg-card rounded-lg border">
           <h2 className="text-xl font-bold mb-4">غير مصرح لك بالوصول</h2>
           <p className="text-muted-foreground mb-4">
-            ليس لديك صلاحية للوصول إلى لوحة التحكم
+            ليس لديك صلاحية للوصول إلى لوحة التحكم. لتفعيل حسابك كمسؤول، يرجى تنفيذ الأمر التالي في قاعدة البيانات (Supabase SQL Editor):
           </p>
+          
+          <Card className="mb-4 text-left ltr">
+            <CardContent className="p-4 bg-muted font-mono text-sm break-all">
+              INSERT INTO public.user_roles (user_id, role) <br/>
+              VALUES ('{user.id}', 'admin');
+            </CardContent>
+          </Card>
+
           <div className="flex flex-col gap-2">
             <Button onClick={() => navigate("/")} variant="outline">
               العودة للصفحة الرئيسية
             </Button>
-            <Button 
-              onClick={async () => {
-                try {
-                  toast({ title: "جاري الإصلاح", description: "جاري إعداد قاعدة البيانات..." });
-                  // 1. Setup DB tables
-                  const dbSetupRes = await fetch("/api/db-setup");
-                  if (!dbSetupRes.ok) {
-                    const errText = await dbSetupRes.text();
-                    throw new Error(`DB Setup failed: ${errText}`);
-                  }
-
-                  // 2. Make me admin
-                  if (user?.id) {
-                    const initAdminRes = await fetch(`/api/init-admin?userId=${user.id}`);
-                    if (!initAdminRes.ok) {
-                      const errText = await initAdminRes.text();
-                      throw new Error(`Init Admin failed: ${errText}`);
-                    }
-                  }
-                  toast({ title: "تم الإصلاح", description: "سيتم إعادة تحميل الصفحة..." });
-                  // 3. Reload
-                  setTimeout(() => window.location.reload(), 1000);
-                } catch (e) {
-                  console.error(e);
-                  toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء محاولة إصلاح الصلاحيات" });
-                }
-              }} 
-              variant="secondary"
-              className="mt-2"
-            >
-              إصلاح الصلاحيات (Admin Setup)
+            <Button onClick={() => window.location.reload()} variant="default">
+               تحديث الصفحة (بعد تنفيذ الأمر)
             </Button>
           </div>
         </div>

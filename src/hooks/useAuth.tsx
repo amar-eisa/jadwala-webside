@@ -22,12 +22,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const checkAdminRole = async (userId: string) => {
     try {
-      const response = await fetch(`/api/check-role?userId=${userId}`);
-      if (response.ok) {
-        const data = await response.json();
-        return !!data.isAdmin;
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .maybeSingle(); // Use maybeSingle to avoid error if no row found
+      
+      if (error) {
+        console.error("Error checking admin role:", error);
+        return false;
       }
-      return false;
+      
+      return !!data;
     } catch (error) {
       console.error("Error checking admin role:", error);
       return false;

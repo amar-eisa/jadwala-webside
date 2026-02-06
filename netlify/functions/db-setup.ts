@@ -93,6 +93,8 @@ export default async (req: Request) => {
     await sql(`CREATE INDEX IF NOT EXISTS idx_schedules_hall ON schedules(hall_id)`);
     await sql(`CREATE INDEX IF NOT EXISTS idx_schedules_instructor ON schedules(instructor_id)`);
     await sql(`CREATE INDEX IF NOT EXISTS idx_schedules_course ON schedules(course_id)`);
+    // Ensure unique roles per user
+    await sql(`CREATE UNIQUE INDEX IF NOT EXISTS idx_user_roles_unique ON user_roles(user_id, role)`);
 
     return new Response(JSON.stringify({ success: true, message: "Database tables created successfully" }), {
       status: 200,

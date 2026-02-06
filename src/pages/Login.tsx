@@ -33,6 +33,30 @@ const Login = () => {
   const { signIn, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  const [isSetupMode, setIsSetupMode] = useState(false);
+
+  useEffect(() => {
+    const checkSetup = async () => {
+      try {
+        const res = await fetch("/api/auth/check-setup");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.setupRequired) {
+            setIsSetupMode(true);
+            setIsLogin(false);
+            toast({
+              title: "مرحباً بك في النظام",
+              description: "يرجى إنشاء حساب المدير الأول للبدء",
+              duration: 6000,
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Setup check failed", e);
+      }
+    };
+    checkSetup();
+  }, [toast]);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -204,27 +228,34 @@ const Login = () => {
               </form>
             </Form>
 
-            <div className="mt-6 text-center space-y-4">
-              <button
-                type="button"
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-primary hover:underline text-sm font-medium"
-              >
-                {isLogin 
-                  ? "ليس لديك حساب؟ أنشئ حساباً جديداً" 
-                  : "لديك حساب بالفعل؟ سجل دخولك"
-                }
-              </button>
-              
-              <div className="block">
-                <a
-                  href="/"
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            {!isSetupMode && (
+              <div className="mt-6 text-center space-y-4">
+                <button
+                  type="button"
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-primary hover:underline text-sm font-medium"
                 >
-                  العودة للصفحة الرئيسية
-                </a>
+                  {isLogin 
+                    ? "ليس لديك حساب؟ أنشئ حساباً جديداً" 
+                    : "لديك حساب بالفعل؟ سجل دخولك"
+                  }
+                </button>
+                
+                <div className="block">
+                  <a
+                    href="/"
+                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    العودة للصفحة الرئيسية
+                  </a>
+                </div>
               </div>
-            </div>
+            )}
+            {isSetupMode && (
+              <div className="mt-6 text-center">
+                 <p className="text-sm text-muted-foreground">جاري إعداد حساب المدير</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

@@ -59,12 +59,12 @@ const DashboardLayout = () => {
         <div className="max-w-lg p-8 text-center bg-card rounded-lg border">
           <h2 className="text-xl font-bold mb-4">غير مصرح لك بالوصول</h2>
           <p className="text-muted-foreground mb-4">
-            ليس لديك صلاحية للوصول إلى لوحة التحكم. لتفعيل حسابك كمسؤول، يرجى تنفيذ الأمر التالي في قاعدة البيانات (Supabase SQL Editor):
+            ليس لديك صلاحية للوصول إلى لوحة التحكم. لتفعيل حسابك كمسؤول، يرجى تنفيذ الأمر التالي في قاعدة البيانات:
           </p>
           
           <Card className="mb-4 text-left ltr">
             <CardContent className="p-4 bg-muted font-mono text-sm break-all">
-              INSERT INTO public.user_roles (user_id, role) <br/>
+              INSERT INTO user_roles (user_id, role) <br/>
               VALUES ('{user.id}', 'admin');
             </CardContent>
           </Card>

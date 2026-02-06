@@ -71,3 +71,26 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Administrative Access
+
+This application uses role-based access control. To create an administrator:
+
+1.  **Create the user** via the application's Sign Up page (uses Supabase Auth).
+2.  **Assign the 'admin' role** in the Neon database.
+
+**Using the provided script:**
+Requires `SUPABASE_SERVICE_ROLE_KEY` (for Supabase Auth) and `NETLIFY_DATABASE_URL` (for Neon).
+
+```bash
+SUPABASE_SERVICE_ROLE_KEY=your_key npm run create-admin
+```
+
+**Using SQL (Neon Console):**
+
+```sql
+-- Find the user ID from the 'users' table or Supabase dashboard
+-- Then run:
+INSERT INTO user_roles (user_id, role)
+VALUES ('USER_UUID_HERE', 'admin');
+```

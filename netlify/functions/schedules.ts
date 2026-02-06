@@ -1,46 +1,40 @@
-import { createClient } from "@supabase/supabase-js";
+import { neon } from "@netlify/neon";
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const databaseUrl = process.env.NETLIFY_DATABASE_URL;
 
 export default async (req: Request) => {
-  if (!supabaseUrl || !supabaseKey) {
-    return new Response(JSON.stringify({ error: "Missing Supabase configuration" }), {
+  if (!databaseUrl) {
+    return new Response(JSON.stringify({ error: "Missing Database configuration" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const sql = neon(databaseUrl);
   const url = new URL(req.url);
 
   try {
     if (req.method === "GET") {
-      const { data, error } = await supabase
-        .from("schedules")
-        .select(`
-          *,
-          courses:course_id (name, code),
-          instructors:instructor_id (name),
-          halls:hall_id (name, type)
-        `);
+      const data = await sql`
+        SELECT 
+          s.*,
+          c.name as course_name,
+          c.code as course_code,
+          i.name as instructor_name,
+          h.name as hall_name,
+          h.type as hall_type
+        FROM schedules s
+        JOIN courses c ON s.course_id = c.id
+        JOIN instructors i ON s.instructor_id = i.id
+        JOIN halls h ON s.hall_id = h.id
+      `;
 
-      if (error) throw error;
-
-      // Map to flat structure expected by frontend
-      // and sort by day/time
-      const daysOrder = { 'sunday': 1, 'monday': 2, 'tuesday': 3, 'wednesday': 4, 'thursday': 5 };
+      // Sort by day/time
+      const daysOrder: Record<string, number> = { 'sunday': 1, 'monday': 2, 'tuesday': 3, 'wednesday': 4, 'thursday': 5 };
       
-      const mappedData = data.map((s: any) => ({
-        ...s,
-        course_name: s.courses?.name,
-        course_code: s.courses?.code,
-        instructor_name: s.instructors?.name,
-        hall_name: s.halls?.name,
-        hall_type: s.halls?.type
-      })).sort((a: any, b: any) => {
-        const dayA = daysOrder[a.day_of_week as keyof typeof daysOrder] || 99;
-        const dayB = daysOrder[b.day_of_week as keyof typeof daysOrder] || 99;
+      const mappedData = data.sort((a: any, b: any) => {
+        const dayA = daysOrder[a.day_of_week] || 99;
+        const dayB = daysOrder[b.day_of_week] || 99;
         if (dayA !== dayB) return dayA - dayB;
         return a.start_time.localeCompare(b.start_time);
       });
@@ -55,22 +49,20 @@ export default async (req: Request) => {
       const { course_id, instructor_id, hall_id, day_of_week, start_time, end_time, semester, academic_year } = body;
 
       // 1. Check Hall Conflict
-      let hallQuery = supabase
-        .from('schedules')
-        .select('*, courses(name)')
-        .eq('hall_id', hall_id)
-        .eq('day_of_week', day_of_week)
-        .lt('start_time', end_time)
-        .gt('end_time', start_time);
-      
-      if (semester) hallQuery = hallQuery.eq('semester', semester);
-      if (academic_year) hallQuery = hallQuery.eq('academic_year', academic_year);
+      const hallConflicts = await sql`
+        SELECT s.*, c.name as course_name
+        FROM schedules s
+        JOIN courses c ON s.course_id = c.id
+        WHERE s.hall_id = ${hall_id}
+          AND s.day_of_week = ${day_of_week}
+          AND s.start_time < ${end_time}
+          AND s.end_time > ${start_time}
+          ${semester ? sql`AND s.semester = ${semester}` : sql``}
+          ${academic_year ? sql`AND s.academic_year = ${academic_year}` : sql``}
+      `;
 
-      const { data: hallConflicts, error: hallError } = await hallQuery;
-      if (hallError) throw hallError;
-
-      if (hallConflicts && hallConflicts.length > 0) {
-        const conflictCourse = (hallConflicts[0] as any).courses?.name || "Unknown";
+      if (hallConflicts.length > 0) {
+        const conflictCourse = hallConflicts[0].course_name || "Unknown";
         return new Response(
           JSON.stringify({ error: `تعارض في القاعة: القاعة محجوزة لمقرر "${conflictCourse}" في نفس الوقت` }),
           { status: 409, headers: { "Content-Type": "application/json" } }
@@ -78,22 +70,20 @@ export default async (req: Request) => {
       }
 
       // 2. Check Instructor Conflict
-      let instQuery = supabase
-        .from('schedules')
-        .select('*, courses(name)')
-        .eq('instructor_id', instructor_id)
-        .eq('day_of_week', day_of_week)
-        .lt('start_time', end_time)
-        .gt('end_time', start_time);
+      const instConflicts = await sql`
+        SELECT s.*, c.name as course_name
+        FROM schedules s
+        JOIN courses c ON s.course_id = c.id
+        WHERE s.instructor_id = ${instructor_id}
+          AND s.day_of_week = ${day_of_week}
+          AND s.start_time < ${end_time}
+          AND s.end_time > ${start_time}
+          ${semester ? sql`AND s.semester = ${semester}` : sql``}
+          ${academic_year ? sql`AND s.academic_year = ${academic_year}` : sql``}
+      `;
 
-      if (semester) instQuery = instQuery.eq('semester', semester);
-      if (academic_year) instQuery = instQuery.eq('academic_year', academic_year);
-
-      const { data: instConflicts, error: instError } = await instQuery;
-      if (instError) throw instError;
-
-      if (instConflicts && instConflicts.length > 0) {
-         const conflictCourse = (instConflicts[0] as any).courses?.name || "Unknown";
+      if (instConflicts.length > 0) {
+         const conflictCourse = instConflicts[0].course_name || "Unknown";
         return new Response(
           JSON.stringify({ error: `تعارض في المحاضر: المحاضر مشغول بمقرر "${conflictCourse}" في نفس الوقت` }),
           { status: 409, headers: { "Content-Type": "application/json" } }
@@ -101,22 +91,18 @@ export default async (req: Request) => {
       }
 
       // 3. Insert
-      const { data, error } = await supabase
-        .from("schedules")
-        .insert([{ 
-          course_id, 
-          instructor_id, 
-          hall_id, 
-          day_of_week, 
-          start_time, 
-          end_time, 
-          semester: semester || null, 
-          academic_year: academic_year || null 
-        }])
-        .select()
-        .single();
+      const [data] = await sql`
+        INSERT INTO schedules (
+          course_id, instructor_id, hall_id, day_of_week, 
+          start_time, end_time, semester, academic_year
+        )
+        VALUES (
+          ${course_id}, ${instructor_id}, ${hall_id}, ${day_of_week}, 
+          ${start_time}, ${end_time}, ${semester || null}, ${academic_year || null}
+        )
+        RETURNING *
+      `;
 
-      if (error) throw error;
       return new Response(JSON.stringify(data), {
         status: 201,
         headers: { "Content-Type": "application/json" },
@@ -127,12 +113,8 @@ export default async (req: Request) => {
       const id = url.searchParams.get("id");
       if (!id) return new Response("Missing id", { status: 400 });
 
-      const { error } = await supabase
-        .from("schedules")
-        .delete()
-        .eq("id", id);
+      await sql`DELETE FROM schedules WHERE id = ${parseInt(id)}`;
 
-      if (error) throw error;
       return new Response(JSON.stringify({ success: true }), {
         headers: { "Content-Type": "application/json" },
       });

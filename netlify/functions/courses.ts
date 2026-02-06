@@ -1,28 +1,25 @@
-import { createClient } from "@supabase/supabase-js";
+import { neon } from "@netlify/neon";
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const databaseUrl = process.env.NETLIFY_DATABASE_URL;
 
 export default async (req: Request) => {
-  if (!supabaseUrl || !supabaseKey) {
-    return new Response(JSON.stringify({ error: "Missing Supabase configuration" }), {
+  if (!databaseUrl) {
+    return new Response(JSON.stringify({ error: "Missing Database configuration" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const sql = neon(databaseUrl);
   const url = new URL(req.url);
 
   try {
     // GET: List courses
     if (req.method === "GET") {
-      const { data, error } = await supabase
-        .from("courses")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
+      const data = await sql`
+        SELECT * FROM courses 
+        ORDER BY created_at DESC
+      `;
 
       return new Response(JSON.stringify(data), {
         headers: { "Content-Type": "application/json" },
@@ -34,21 +31,11 @@ export default async (req: Request) => {
       const body = await req.json();
       const { name, code, department, credit_hours, student_count } = body;
       
-      const { data, error } = await supabase
-        .from("courses")
-        .insert([
-          { 
-            name, 
-            code, 
-            department: department || null, 
-            credit_hours: credit_hours || 3, 
-            student_count: student_count || 0 
-          }
-        ])
-        .select()
-        .single();
-
-      if (error) throw error;
+      const [data] = await sql`
+        INSERT INTO courses (name, code, department, credit_hours, student_count)
+        VALUES (${name}, ${code}, ${department || null}, ${credit_hours || 3}, ${student_count || 0})
+        RETURNING *
+      `;
 
       return new Response(JSON.stringify(data), {
         status: 201,
@@ -61,21 +48,25 @@ export default async (req: Request) => {
       const body = await req.json();
       const { id, name, code, department, credit_hours, student_count } = body;
       
-      const { data, error } = await supabase
-        .from("courses")
-        .update({ 
-          name, 
-          code, 
-          department: department || null, 
-          credit_hours: credit_hours || 3, 
-          student_count: student_count || 0,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", id)
-        .select()
-        .single();
+      const [data] = await sql`
+        UPDATE courses 
+        SET 
+          name = ${name}, 
+          code = ${code}, 
+          department = ${department || null}, 
+          credit_hours = ${credit_hours || 3}, 
+          student_count = ${student_count || 0},
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `;
 
-      if (error) throw error;
+      if (!data) {
+        return new Response(JSON.stringify({ error: "Course not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
 
       return new Response(JSON.stringify(data), {
         headers: { "Content-Type": "application/json" },
@@ -87,12 +78,7 @@ export default async (req: Request) => {
       const id = url.searchParams.get("id");
       if (!id) return new Response("Missing id", { status: 400 });
 
-      const { error } = await supabase
-        .from("courses")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
+      await sql`DELETE FROM courses WHERE id = ${parseInt(id)}`;
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { "Content-Type": "application/json" },

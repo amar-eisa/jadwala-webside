@@ -1,27 +1,25 @@
-import { createClient } from "@supabase/supabase-js";
+import { neon } from "@netlify/neon";
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const databaseUrl = process.env.NETLIFY_DATABASE_URL;
 
 export default async (req: Request) => {
-  if (!supabaseUrl || !supabaseKey) {
-    return new Response(JSON.stringify({ error: "Missing Supabase configuration" }), {
+  if (!databaseUrl) {
+    return new Response(JSON.stringify({ error: "Missing Database configuration" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const sql = neon(databaseUrl);
   const url = new URL(req.url);
 
   try {
     if (req.method === "GET") {
-      const { data, error } = await supabase
-        .from("instructors")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const data = await sql`
+        SELECT * FROM instructors 
+        ORDER BY created_at DESC
+      `;
 
-      if (error) throw error;
       return new Response(JSON.stringify(data), {
         headers: { "Content-Type": "application/json" },
       });
@@ -31,17 +29,12 @@ export default async (req: Request) => {
       const body = await req.json();
       const { name, email, department } = body;
       
-      const { data, error } = await supabase
-        .from("instructors")
-        .insert([{ 
-          name, 
-          email: email || null, 
-          department: department || null 
-        }])
-        .select()
-        .single();
+      const [data] = await sql`
+        INSERT INTO instructors (name, email, department)
+        VALUES (${name}, ${email || null}, ${department || null})
+        RETURNING *
+      `;
 
-      if (error) throw error;
       return new Response(JSON.stringify(data), {
         status: 201,
         headers: { "Content-Type": "application/json" },
@@ -52,19 +45,24 @@ export default async (req: Request) => {
       const body = await req.json();
       const { id, name, email, department } = body;
       
-      const { data, error } = await supabase
-        .from("instructors")
-        .update({ 
-          name, 
-          email: email || null, 
-          department: department || null,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", id)
-        .select()
-        .single();
+      const [data] = await sql`
+        UPDATE instructors 
+        SET 
+          name = ${name}, 
+          email = ${email || null}, 
+          department = ${department || null},
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `;
 
-      if (error) throw error;
+      if (!data) {
+        return new Response(JSON.stringify({ error: "Instructor not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
       return new Response(JSON.stringify(data), {
         headers: { "Content-Type": "application/json" },
       });
@@ -74,12 +72,8 @@ export default async (req: Request) => {
       const id = url.searchParams.get("id");
       if (!id) return new Response("Missing id", { status: 400 });
 
-      const { error } = await supabase
-        .from("instructors")
-        .delete()
-        .eq("id", id);
+      await sql`DELETE FROM instructors WHERE id = ${parseInt(id)}`;
 
-      if (error) throw error;
       return new Response(JSON.stringify({ success: true }), {
         headers: { "Content-Type": "application/json" },
       });

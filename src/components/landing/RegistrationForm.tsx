@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -93,36 +92,38 @@ const RegistrationForm = ({ formRef }: RegistrationFormProps) => {
     setIsSubmitting(true);
     try {
       const fullPhone = `${data.countryCode} ${data.phone}`;
-      const { error } = await supabase.from("leads").insert({
-        full_name: data.fullName,
-        email: data.email,
-        phone: fullPhone,
-        institution: data.institution,
-        job_title: data.jobTitle,
-        student_count: data.studentCount,
-        notes: data.notes || null,
+      
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          full_name: data.fullName,
+          email: data.email,
+          phone: fullPhone,
+          institution: data.institution,
+          job_title: data.jobTitle,
+          student_count: data.studentCount,
+          notes: data.notes || null,
+        }),
       });
 
-      if (error) {
-        console.error("Error submitting lead:", error);
-        toast({
-          variant: "destructive",
-          title: "خطأ في التسجيل",
-          description: "حدث خطأ أثناء إرسال البيانات. يرجى المحاولة مرة أخرى.",
-        });
-      } else {
-        toast({
-          title: "تم التسجيل بنجاح! 🎉",
-          description: "سنتواصل معك قريباً",
-        });
-        form.reset();
+      if (!response.ok) {
+        throw new Error("Failed to submit lead");
       }
+
+      toast({
+        title: "تم التسجيل بنجاح! 🎉",
+        description: "سنتواصل معك قريباً",
+      });
+      form.reset();
     } catch (error) {
       console.error("Error:", error);
       toast({
         variant: "destructive",
-        title: "خطأ",
-        description: "حدث خطأ غير متوقع",
+        title: "خطأ في التسجيل",
+        description: "حدث خطأ أثناء إرسال البيانات. يرجى المحاولة مرة أخرى.",
       });
     } finally {
       setIsSubmitting(false);

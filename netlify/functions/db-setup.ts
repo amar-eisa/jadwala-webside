@@ -60,6 +60,34 @@ export default async (req: Request) => {
       )
     `);
 
+    // Create leads table
+    await sql(`
+      CREATE TABLE IF NOT EXISTS leads (
+        id SERIAL PRIMARY KEY,
+        full_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        phone VARCHAR(50) NOT NULL,
+        institution VARCHAR(255) NOT NULL,
+        job_title VARCHAR(100) NOT NULL,
+        student_count VARCHAR(50) NOT NULL,
+        notes TEXT,
+        status VARCHAR(50) NOT NULL DEFAULT 'new',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `);
+
+    // Create user_roles table
+    await sql(`
+      CREATE TABLE IF NOT EXISTS user_roles (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user')),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `);
+    
     // Create indexes
     await sql(`CREATE INDEX IF NOT EXISTS idx_schedules_day ON schedules(day_of_week)`);
     await sql(`CREATE INDEX IF NOT EXISTS idx_schedules_hall ON schedules(hall_id)`);

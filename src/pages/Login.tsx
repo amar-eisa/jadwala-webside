@@ -30,8 +30,9 @@ type LoginFormData = z.infer<typeof loginSchema>;
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn } = useAuth();
+  const { signIn, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -44,22 +45,50 @@ const Login = () => {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const { error } = await signIn(data.email, data.password);
-      
-      if (error) {
-        toast({
-          variant: "destructive",
-          title: "خطأ في تسجيل الدخول",
-          description: error.message === "Invalid login credentials" 
-            ? "بيانات الدخول غير صحيحة" 
-            : error.message,
-        });
+      if (isLogin) {
+        const { error } = await signIn(data.email, data.password);
+        
+        if (error) {
+          toast({
+            variant: "destructive",
+            title: "خطأ في تسجيل الدخول",
+            description: error.message === "Invalid login credentials" 
+              ? "بيانات الدخول غير صحيحة" 
+              : error.message,
+          });
+        } else {
+          toast({
+            title: "تم تسجيل الدخول بنجاح",
+            description: "جاري التوجيه للوحة التحكم...",
+          });
+          navigate("/dashboard");
+        }
       } else {
-        toast({
-          title: "تم تسجيل الدخول بنجاح",
-          description: "جاري التوجيه للوحة التحكم...",
-        });
-        navigate("/dashboard");
+        const { error } = await signUp(data.email, data.password);
+        
+        if (error) {
+          toast({
+            variant: "destructive",
+            title: "خطأ في إنشاء الحساب",
+            description: error.message,
+          });
+        } else {
+          toast({
+            title: "تم إنشاء الحساب بنجاح",
+            description: "جاري تسجيل الدخول...",
+          });
+          // Attempt to sign in immediately after sign up
+          const { error: signInError } = await signIn(data.email, data.password);
+          if (!signInError) {
+             navigate("/dashboard");
+          } else {
+             // If auto-signin fails (e.g. email verification needed), let the user know
+             toast({
+               title: "تحقق من بريدك الإلكتروني",
+               description: "إذا طُلب منك تفعيل الحساب، يرجى التحقق من بريدك الإلكتروني.",
+             });
+          }
+        }
       }
     } catch (error) {
       toast({
@@ -106,10 +135,13 @@ const Login = () => {
               <img src={logo} alt="نظام جدولة" className="h-16 w-auto" />
             </div>
             <CardTitle className="text-2xl font-bold gradient-primary-text">
-              لوحة التحكم
+              {isLogin ? "تسجيل الدخول" : "إنشاء حساب جديد"}
             </CardTitle>
             <p className="text-muted-foreground mt-2">
-              سجل دخولك للوصول إلى لوحة إدارة العملاء
+              {isLogin 
+                ? "سجل دخولك للوصول إلى لوحة إدارة العملاء" 
+                : "أنشئ حساباً جديداً للبدء في استخدام النظام"
+              }
             </p>
           </CardHeader>
           <CardContent className="p-8">
@@ -163,19 +195,35 @@ const Login = () => {
                   className="w-full gradient-primary text-primary-foreground hover:opacity-90 shadow-glow"
                   disabled={isLoading}
                 >
-                  {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
+                  {isLoading 
+                    ? "جاري المعالجة..." 
+                    : (isLogin ? "تسجيل الدخول" : "إنشاء الحساب")
+                  }
                   <ArrowRight className="w-5 h-5 mr-2" />
                 </Button>
               </form>
             </Form>
 
-            <div className="mt-6 text-center">
-              <a
-                href="/"
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            <div className="mt-6 text-center space-y-4">
+              <button
+                type="button"
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-primary hover:underline text-sm font-medium"
               >
-                العودة للصفحة الرئيسية
-              </a>
+                {isLogin 
+                  ? "ليس لديك حساب؟ أنشئ حساباً جديداً" 
+                  : "لديك حساب بالفعل؟ سجل دخولك"
+                }
+              </button>
+              
+              <div className="block">
+                <a
+                  href="/"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  العودة للصفحة الرئيسية
+                </a>
+              </div>
             </div>
           </CardContent>
         </Card>

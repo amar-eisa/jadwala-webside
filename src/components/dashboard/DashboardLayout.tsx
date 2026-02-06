@@ -69,10 +69,19 @@ const DashboardLayout = () => {
                 try {
                   toast({ title: "جاري الإصلاح", description: "جاري إعداد قاعدة البيانات..." });
                   // 1. Setup DB tables
-                  await fetch("/api/db-setup");
+                  const dbSetupRes = await fetch("/api/db-setup");
+                  if (!dbSetupRes.ok) {
+                    const errText = await dbSetupRes.text();
+                    throw new Error(`DB Setup failed: ${errText}`);
+                  }
+
                   // 2. Make me admin
                   if (user?.id) {
-                    await fetch(`/api/init-admin?userId=${user.id}`);
+                    const initAdminRes = await fetch(`/api/init-admin?userId=${user.id}`);
+                    if (!initAdminRes.ok) {
+                      const errText = await initAdminRes.text();
+                      throw new Error(`Init Admin failed: ${errText}`);
+                    }
                   }
                   toast({ title: "تم الإصلاح", description: "سيتم إعادة تحميل الصفحة..." });
                   // 3. Reload

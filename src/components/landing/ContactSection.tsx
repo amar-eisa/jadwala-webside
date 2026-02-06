@@ -6,8 +6,8 @@ const contactInfo = [
   {
     icon: Mail,
     label: "البريد الإلكتروني",
-    value: "jadwala.app@gmail.com",
-    href: "mailto:jadwala.app@gmail.com",
+    value: "jadwala@connectsys.cloud",
+    href: "mailto:jadwala@connectsys.cloud",
   },
   {
     icon: Phone,

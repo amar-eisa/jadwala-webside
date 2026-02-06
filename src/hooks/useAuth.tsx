@@ -1,14 +1,24 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+
+// Compatible interfaces
+export interface User {
+  id: string;
+  email?: string;
+  role?: string;
+}
+
+export interface Session {
+  access_token: string;
+  expires_at: number | string;
+}
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: { message: string } | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: { message: string } | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -20,77 +30,106 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const checkAdminRole = async (userId: string) => {
-    try {
-      const res = await fetch(`/api/user-role?userId=${userId}`);
-      if (res.ok) {
-        const { isAdmin } = await res.json();
-        return isAdmin;
-      }
-      return false;
-    } catch (error) {
-      console.error("Error checking admin role:", error);
-      return false;
-    }
-  };
-
+  // Load session on mount
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    const loadSession = async () => {
+      const token = localStorage.getItem("auth_token");
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
 
-        if (session?.user) {
-          // Check admin role with setTimeout to avoid deadlock
-          setTimeout(async () => {
-            const adminStatus = await checkAdminRole(session.user.id);
-            setIsAdmin(adminStatus);
-            setIsLoading(false);
-          }, 0);
+      try {
+        const res = await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+          setSession(data.session);
+          setIsAdmin(data.user.role === 'admin');
         } else {
+          // Invalid token
+          localStorage.removeItem("auth_token");
+          setUser(null);
+          setSession(null);
           setIsAdmin(false);
-          setIsLoading(false);
         }
+      } catch (e) {
+        console.error("Auth check failed", e);
+      } finally {
+        setIsLoading(false);
       }
-    );
+    };
 
-    // THEN get current session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        const adminStatus = await checkAdminRole(session.user.id);
-        setIsAdmin(adminStatus);
-      }
-      setIsLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    loadSession();
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { error: { message: data.error || "Login failed" } };
+      }
+
+      localStorage.setItem("auth_token", data.session.access_token);
+      setUser(data.user);
+      setSession(data.session);
+      setIsAdmin(data.user.role === 'admin');
+      return { error: null };
+    } catch (e) {
+      return { error: { message: "Network error" } };
+    }
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    return { error };
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { error: { message: data.error || "Registration failed" } };
+      }
+
+      localStorage.setItem("auth_token", data.session.access_token);
+      setUser(data.user);
+      setSession(data.session);
+      setIsAdmin(data.user.role === 'admin');
+      return { error: null };
+    } catch (e) {
+      return { error: { message: "Network error" } };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (e) {
+        // ignore
+      }
+    }
+    localStorage.removeItem("auth_token");
+    setUser(null);
+    setSession(null);
+    setIsAdmin(false);
   };
 
   return (
